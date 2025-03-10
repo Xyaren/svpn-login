@@ -15,6 +15,28 @@ fi
 
 script_full_path=$(dirname "$0")
 
+PID_FILE=/var/run/vpn.pid
+
+#
+if [ -f $PID_FILE ]; then
+  PREV_PID=$(cat $PID_FILE)
+  echo "Stopping PID $PREV_PID"
+  kill -SIGKILL "$PREV_PID"
+  while kill -0 "$PREV_PID"; do
+    sleep 1
+  done
+  echo "Stopped PID $PREV_PID"
+  rm -f "$PID_FILE"
+fi
+
+echo $$ >$PID_FILE
+
+remove_pid() {
+  rm -f "$PID_FILE"
+}
+
+trap remove_pid SIGQUIT SIGINT SIGTERM
+
 # Source the credentials file if it exists
 CREDENTIALS_FILE="${script_full_path}/.credentials"
 if [ -f "$CREDENTIALS_FILE" ]; then
@@ -85,6 +107,8 @@ start_vpn() {
     kill -SIGINT "$child_pid" # Forward the interrupt signal to the Python script
     wait "$child_pid"
     echo "Shutting down. Please wait..."
+
+    remove_pid
   }
 
   # Set up the interrupt handler
@@ -98,6 +122,8 @@ start_vpn() {
 
   trap '' SIGINT SIGTERM EXIT
   tear_down
+
+  remove_pid
 }
 
 start_vpn
